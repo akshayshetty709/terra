@@ -1,0 +1,168 @@
+# modules/cloudfront/variables.tf
+
+variable "comment" {
+  description = "Comment for the distribution (shows in console)"
+  type        = string
+  default     = ""
+}
+
+variable "aliases" {
+  description = "Alternate domain names (CNAMEs) for the distribution"
+  type        = list(string)
+  default     = []
+}
+
+variable "certificate_arn" {
+  description = "ACM certificate ARN (must be in us-east-1 for CloudFront)"
+  type        = string
+  default     = null
+}
+
+variable "default_root_object" {
+  description = "Default root object (e.g., index.html)"
+  type        = string
+  default     = "index.html"
+}
+
+variable "enabled" {
+  description = "Whether the distribution is enabled"
+  type        = bool
+  default     = true
+}
+
+variable "price_class" {
+  description = "Price class for the distribution"
+  type        = string
+  default     = "PriceClass_100" # US, Canada, Europe only
+
+  validation {
+    condition     = contains(["PriceClass_100", "PriceClass_200", "PriceClass_All"], var.price_class)
+    error_message = "price_class must be PriceClass_100, PriceClass_200, or PriceClass_All"
+  }
+}
+
+# NEW: HTTP version
+variable "http_version" {
+  description = "Maximum HTTP version to support (http1.1, http2, http2and3, http3)"
+  type        = string
+  default     = "http2and3"
+
+  validation {
+    condition     = contains(["http1.1", "http2", "http2and3", "http3"], var.http_version)
+    error_message = "http_version must be one of: http1.1, http2, http2and3, http3"
+  }
+}
+
+# NEW: Access logging
+variable "logging" {
+  description = "Access logging configuration. Set to null to disable logging."
+  type = object({
+    bucket          = string  # S3 bucket domain name, e.g. my-logs-bucket.s3.amazonaws.com
+    prefix          = optional(string, "cloudfront/")
+    include_cookies = optional(bool, false)
+  })
+  default = null
+}
+
+# NEW: Geo restriction
+variable "geo_restriction" {
+  description = "Geographic restriction configuration"
+  type = object({
+    restriction_type = string       # "whitelist", "blacklist", or "none"
+    locations        = optional(list(string), []) # ISO 3166-1-alpha-2 country codes
+  })
+  default = {
+    restriction_type = "none"
+    locations        = []
+  }
+
+  validation {
+    condition     = contains(["whitelist", "blacklist", "none"], var.geo_restriction.restriction_type)
+    error_message = "restriction_type must be whitelist, blacklist, or none"
+  }
+}
+
+# S3 origin configuration
+variable "s3_origin" {
+  description = "S3 bucket origin configuration"
+  type = object({
+    bucket_id              = string
+    bucket_arn             = string
+    bucket_domain_name     = string
+    origin_path            = optional(string, "")
+  })
+  default = null
+}
+
+# Custom origin configuration (ALB, API Gateway, etc.)
+variable "custom_origins" {
+  description = "Custom origins for the distribution"
+  type = list(object({
+    origin_id            = string
+    domain_name          = string
+    origin_path          = optional(string, "")
+    http_port            = optional(number, 80)
+    https_port           = optional(number, 443)
+    origin_protocol      = optional(string, "https-only")
+    origin_ssl_protocols = optional(list(string), ["TLSv1.2"])
+  }))
+  default = []
+}
+
+# Default cache behavior
+variable "default_cache_behavior" {
+  description = "Default cache behavior settings"
+  type = object({
+    target_origin_id         = string
+    viewer_protocol_policy   = optional(string, "redirect-to-https")
+    allowed_methods          = optional(list(string), ["GET", "HEAD", "OPTIONS"])
+    cached_methods           = optional(list(string), ["GET", "HEAD"])
+    compress                 = optional(bool, true)
+    default_ttl              = optional(number, 86400)
+    max_ttl                  = optional(number, 31536000)
+    min_ttl                  = optional(number, 0)
+    cache_policy_id          = optional(string, null)
+    origin_request_policy_id = optional(string, null)
+  })
+}
+
+# Additional cache behaviors for path-based routing
+variable "ordered_cache_behaviors" {
+  description = "Additional cache behaviors (ordered by priority)"
+  type = list(object({
+    path_pattern           = string
+    target_origin_id       = string
+    viewer_protocol_policy = optional(string, "redirect-to-https")
+    allowed_methods        = optional(list(string), ["GET", "HEAD", "OPTIONS"])
+    cached_methods         = optional(list(string), ["GET", "HEAD"])
+    compress               = optional(bool, true)
+    default_ttl            = optional(number, 86400)
+    max_ttl                = optional(number, 31536000)
+    min_ttl                = optional(number, 0)
+    cache_policy_id        = optional(string, null)
+  }))
+  default = []
+}
+
+variable "custom_error_responses" {
+  description = "Custom error response configurations"
+  type = list(object({
+    error_code            = number
+    response_code         = optional(number)
+    response_page_path    = optional(string)
+    error_caching_min_ttl = optional(number, 300)
+  }))
+  default = []
+}
+
+variable "web_acl_id" {
+  description = "WAF web ACL ID to associate with the distribution"
+  type        = string
+  default     = null
+}
+
+variable "tags" {
+  description = "Additional tags"
+  type        = map(string)
+  default     = {}
+}
